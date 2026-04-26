@@ -27,15 +27,33 @@ jobs:
       - name: Download Godot
         run: |
           curl -L -o godot.zip https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_linux.x86_64.zip
-          unzip godot.zip
+          unzip -o godot.zip
           chmod +x Godot_v4.2.2-stable_linux.x86_64
 
       - name: Download Android export templates
         run: |
           mkdir -p ~/.local/share/godot/export_templates/4.2.2.stable
           curl -L -o templates.tpz https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_export_templates.tpz
-          unzip templates.tpz -d templates
+          unzip -o templates.tpz -d templates
           cp -r templates/templates/* ~/.local/share/godot/export_templates/4.2.2.stable/
+
+      - name: Create clean icon
+        run: |
+          rm -f icon.png
+          python3 - <<'PY'
+          from PIL import Image, ImageDraw
+          img = Image.new("RGBA", (512, 512), (0, 90, 220, 255))
+          d = ImageDraw.Draw(img)
+          d.rounded_rectangle((20, 20, 492, 492), radius=90, fill=(0, 110, 255, 255))
+          d.rectangle((150, 270, 330, 360), fill=(255, 255, 255, 255))
+          d.rectangle((325, 205, 370, 360), fill=(20, 35, 60, 255))
+          d.rectangle((360, 330, 470, 355), fill=(255, 205, 30, 255))
+          d.rectangle((405, 250, 475, 325), fill=(255, 205, 30, 255))
+          d.ellipse((155, 345, 215, 405), fill=(15, 25, 45, 255))
+          d.ellipse((275, 345, 335, 405), fill=(15, 25, 45, 255))
+          d.rectangle((210, 235, 260, 285), fill=(15, 25, 45, 255))
+          img.save("icon.png")
+          PY
 
       - name: Create debug keystore
         run: |
@@ -46,14 +64,6 @@ jobs:
             -keystore debug.keystore \
             -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
-
-      - name: Fix missing files
-        run: |
-          mkdir -p .godot/editor
-          chmod -R 777 .
-
-          # Fix broken/missing icon.png with a tiny valid PNG
-          echo "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAOUlEQVR4nO3PAQ0AAAgDINc/9K3hSxJqSQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwG0GQwABpL6S2wAAAABJRU5ErkJggg==" | base64 -d > icon.png
 
       - name: Create Android export preset
         run: |
@@ -95,23 +105,14 @@ jobs:
           package/name="OrderFill Trainer"
           package/signed=true
           package/app_category=2
-          package/retain_data_on_uninstall=false
-          package/exclude_from_recents=false
           launcher_icons/main_192x192="res://icon.png"
           launcher_icons/adaptive_foreground_432x432="res://icon.png"
           launcher_icons/adaptive_background_432x432="res://icon.png"
-          graphics/opengl_debug=false
-          xr_features/xr_mode=0
           screen/immersive_mode=true
           screen/support_small=true
           screen/support_normal=true
           screen/support_large=true
           screen/support_xlarge=true
-          user_data_backup/allow=false
-          command_line/extra_args=""
-          apk_expansion/enable=false
-          apk_expansion/SALT=""
-          apk_expansion/public_key=""
           permissions/custom_permissions=PackedStringArray()
           permissions/internet=false
           permissions/vibrate=false
@@ -123,6 +124,11 @@ jobs:
           keystore/release_user=""
           keystore/release_password=""
           EOF
+
+      - name: Fix permissions
+        run: |
+          mkdir -p .godot/editor
+          chmod -R 777 .
 
       - name: Build APK
         run: |
