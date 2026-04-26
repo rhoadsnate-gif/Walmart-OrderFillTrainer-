@@ -1,8 +1,11 @@
-name: Build APK
+name: Build APK Factory
 
 on:
   push:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -10,36 +13,50 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: "17"
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Download Godot (stable mirror)
+      - name: Download Godot
         run: |
           wget https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_linux.x86_64.zip
           unzip Godot_v4.2.2-stable_linux.x86_64.zip
           chmod +x Godot_v4.2.2-stable_linux.x86_64
 
-      - name: Download Export Templates
+      - name: Download Android export templates
         run: |
           mkdir -p ~/.local/share/godot/export_templates/4.2.2.stable
           wget https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_export_templates.tpz
-          unzip Godot_v4.2.2-stable_export_templates.tpz -d ~/.local/share/godot/export_templates/4.2.2.stable
+          unzip Godot_v4.2.2-stable_export_templates.tpz
+          cp -r templates/templates/* ~/.local/share/godot/export_templates/4.2.2.stable/
 
-      - name: Export APK
+      - name: Create debug keystore
+        run: |
+          keytool -keyalg RSA -genkeypair \
+            -alias androiddebugkey \
+            -keypass android \
+            -storepass android \
+            -keystore debug.keystore \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Fix permissions
+        run: chmod -R 777 .
+
+      - name: Build APK
         run: |
           mkdir -p build
-          ./Godot_v4.2.2-stable_linux.x86_64 --headless --export-release "Android" build/game.apk
+          ./Godot_v4.2.2-stable_linux.x86_64 --headless --no-window --path . --export-debug "Android" build/game.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: game-apk
-          path: build
+          name: OrderFillTrainer-APK
+          path: build/game.apk
