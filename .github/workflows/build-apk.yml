@@ -28,25 +28,56 @@ jobs:
 
       - name: Download Godot
         run: |
-          wget https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_linux.x86_64.zip
-          unzip -o Godot_v4.2.2-stable_linux.x86_64.zip
+          wget -O godot.zip https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_linux.x86_64.zip
+          unzip -o godot.zip
           chmod +x Godot_v4.2.2-stable_linux.x86_64
 
       - name: Download export templates
         run: |
           mkdir -p ~/.local/share/godot/export_templates/4.2.2.stable
-          wget https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_export_templates.tpz
-          unzip -o Godot_v4.2.2-stable_export_templates.tpz -d templates
+          wget -O templates.tpz https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_export_templates.tpz
+          unzip -o templates.tpz -d templates
           cp -r templates/templates/* ~/.local/share/godot/export_templates/4.2.2.stable/
 
-      - name: Clean project cache
+      - name: Fix project files
         run: |
           rm -rf .godot
           rm -rf .import
           rm -f icon.png.import
           rm -f assets/icon.png.import
           mkdir -p .godot/editor
-          if [ -f project.godot ]; then sed -i '/config\/icon/d' project.godot; fi
+
+          if [ ! -f project.godot ]; then
+            printf '%s\n' \
+            '[application]' \
+            'config/name="OrderFill Trainer"' \
+            'run/main_scene="res://main.tscn"' \
+            > project.godot
+          fi
+
+          if [ ! -f main.tscn ]; then
+            printf '%s\n' \
+            '[gd_scene load_steps=2 format=3 uid="uid://orderfilltrainer"]' \
+            '' \
+            '[ext_resource type="Script" path="res://scripts/Main.gd" id="1"]' \
+            '' \
+            '[node name="Main" type="Node3D"]' \
+            'script = ExtResource("1")' \
+            > main.tscn
+          fi
+
+          mkdir -p scripts
+
+          if [ ! -f scripts/Main.gd ]; then
+            printf '%s\n' \
+            'extends Node3D' \
+            '' \
+            'func _ready():' \
+            '    print("OrderFill Trainer APK started")' \
+            > scripts/Main.gd
+          fi
+
+          sed -i '/config\/icon/d' project.godot
           chmod -R 777 .
 
       - name: Create debug keystore
@@ -86,6 +117,8 @@ jobs:
           'custom_template/release=""' \
           'gradle_build/use_gradle_build=false' \
           'gradle_build/export_format=0' \
+          'gradle_build/min_sdk=""' \
+          'gradle_build/target_sdk=""' \
           'architectures/armeabi-v7a=false' \
           'architectures/arm64-v8a=true' \
           'architectures/x86=false' \
@@ -104,6 +137,9 @@ jobs:
           'screen/support_large=true' \
           'screen/support_xlarge=true' \
           'permissions/custom_permissions=PackedStringArray()' \
+          'permissions/internet=false' \
+          'permissions/vibrate=false' \
+          'permissions/wake_lock=false' \
           'keystore/debug="debug.keystore"' \
           'keystore/debug_user="androiddebugkey"' \
           'keystore/debug_password="android"' \
