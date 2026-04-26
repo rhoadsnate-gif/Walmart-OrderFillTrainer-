@@ -24,7 +24,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget unzip
+          sudo apt-get install -y wget unzip imagemagick
 
       - name: Download Godot
         run: |
@@ -32,32 +32,35 @@ jobs:
           unzip -o godot.zip
           chmod +x Godot_v4.2.2-stable_linux.x86_64
 
-      - name: Download export templates
+      - name: Download Godot Android export templates
         run: |
           mkdir -p ~/.local/share/godot/export_templates/4.2.2.stable
           wget -O templates.tpz https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_export_templates.tpz
           unzip -o templates.tpz -d templates
           cp -r templates/templates/* ~/.local/share/godot/export_templates/4.2.2.stable/
 
-      - name: Fix project files
+      - name: Fix project and icon
         run: |
           rm -rf .godot
           rm -rf .import
           rm -f icon.png.import
           rm -f assets/icon.png.import
+
           mkdir -p .godot/editor
+          mkdir -p scripts
 
           if [ ! -f project.godot ]; then
             printf '%s\n' \
             '[application]' \
             'config/name="OrderFill Trainer"' \
             'run/main_scene="res://main.tscn"' \
+            'config/icon="res://icon.png"' \
             > project.godot
           fi
 
           if [ ! -f main.tscn ]; then
             printf '%s\n' \
-            '[gd_scene load_steps=2 format=3 uid="uid://orderfilltrainer"]' \
+            '[gd_scene load_steps=2 format=3]' \
             '' \
             '[ext_resource type="Script" path="res://scripts/Main.gd" id="1"]' \
             '' \
@@ -66,31 +69,39 @@ jobs:
             > main.tscn
           fi
 
-          mkdir -p scripts
-
           if [ ! -f scripts/Main.gd ]; then
             printf '%s\n' \
             'extends Node3D' \
             '' \
             'func _ready():' \
-            '    print("OrderFill Trainer APK started")' \
+            '    print("OrderFill Trainer started")' \
             > scripts/Main.gd
           fi
 
+          if [ ! -f icon.png ]; then
+            convert -size 512x512 xc:"#0071ce" \
+              -fill "#ffc220" -draw "circle 256,256 256,80" \
+              icon.png
+          fi
+
+          convert icon.png -resize 512x512! icon.png
+
           sed -i '/config\/icon/d' project.godot
+          printf '%s\n' 'config/icon="res://icon.png"' >> project.godot
+
           chmod -R 777 .
 
-      - name: Create debug keystore
+      - name: Create Android keystore
         run: |
           keytool -genkeypair -v \
-            -alias androiddebugkey \
+            -alias orderfilltrainer \
             -keyalg RSA \
             -keysize 2048 \
             -validity 10000 \
-            -keystore debug.keystore \
+            -keystore orderfilltrainer.keystore \
             -storepass android \
             -keypass android \
-            -dname "CN=Android Debug,O=Android,C=US"
+            -dname "CN=OrderFill Trainer,O=rhoadsnate,C=US"
 
       - name: Create export preset
         run: |
@@ -105,7 +116,7 @@ jobs:
           'export_filter="all_resources"' \
           'include_filter=""' \
           'exclude_filter=""' \
-          'export_path="build/game.apk"' \
+          'export_path="build/OrderFillTrainer.apk"' \
           'encryption_include_filters=""' \
           'encryption_exclude_filters=""' \
           'encrypt_pck=false' \
@@ -128,9 +139,9 @@ jobs:
           'package/unique_name="com.rhoadsnate.orderfilltrainer"' \
           'package/name="OrderFill Trainer"' \
           'package/signed=true' \
-          'launcher_icons/main_192x192=""' \
-          'launcher_icons/adaptive_foreground_432x432=""' \
-          'launcher_icons/adaptive_background_432x432=""' \
+          'launcher_icons/main_192x192="res://icon.png"' \
+          'launcher_icons/adaptive_foreground_432x432="res://icon.png"' \
+          'launcher_icons/adaptive_background_432x432="res://icon.png"' \
           'screen/immersive_mode=true' \
           'screen/support_small=true' \
           'screen/support_normal=true' \
@@ -140,21 +151,21 @@ jobs:
           'permissions/internet=false' \
           'permissions/vibrate=false' \
           'permissions/wake_lock=false' \
-          'keystore/debug="debug.keystore"' \
-          'keystore/debug_user="androiddebugkey"' \
+          'keystore/debug="orderfilltrainer.keystore"' \
+          'keystore/debug_user="orderfilltrainer"' \
           'keystore/debug_password="android"' \
-          'keystore/release=""' \
-          'keystore/release_user=""' \
-          'keystore/release_password=""' \
+          'keystore/release="orderfilltrainer.keystore"' \
+          'keystore/release_user="orderfilltrainer"' \
+          'keystore/release_password="android"' \
           > export_presets.cfg
 
       - name: Build APK
         run: |
           mkdir -p build
-          ./Godot_v4.2.2-stable_linux.x86_64 --headless --verbose --path . --export-debug "Android" build/game.apk
+          ./Godot_v4.2.2-stable_linux.x86_64 --headless --verbose --path . --export-release "Android" build/OrderFillTrainer.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: OrderFillTrainer-APK
-          path: build/game.apk
+          path: build/OrderFillTrainer.apk
