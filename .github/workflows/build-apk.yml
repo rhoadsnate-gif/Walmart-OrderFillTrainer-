@@ -1,13 +1,8 @@
-yaml
 name: Build APK Factory 
 
 on:
   push:
   workflow_dispatch: 
-
-env:
-  GODOT_VERSION: 4.3-stable
-  GODOT_TEMPLATES_DIR: 4.3.stable 
 
 jobs:
   build:
@@ -32,65 +27,52 @@ jobs:
           sudo apt-get install -y wget unzip python3-pip
           python3 -m pip install --upgrade Pillow 
 
-      - name: Download Godot $`{{ env.GODOT_VERSION }}
+      - name: Download Godot
         run: |
-          wget -q -O godot.zip "https://github.com/godotengine/godot/releases/download/`${GODOT_VERSION}/Godot_v$`{GODOT_VERSION}_linux.x86_64.zip"
+          wget -q -O godot.zip "https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip"
           unzip -o godot.zip
-          mv "Godot_v`${GODOT_VERSION}_linux.x86_64" godot
+          mv "Godot_v4.3-stable_linux.x86_64" godot
           chmod +x godot
           ./godot --version 
 
       - name: Download Android export templates
         run: |
-          mkdir -p "$`HOME/.local/share/godot/export_templates/`${GODOT_TEMPLATES_DIR}"
-          wget -q -O templates.tpz "https://github.com/godotengine/godot/releases/download/$`{GODOT_VERSION}/Godot_v`${GODOT_VERSION}_export_templates.tpz"
+          mkdir -p "$`HOME/.local/share/godot/export_templates/4.3.stable"
+          wget -q -O templates.tpz "https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz"
           unzip -o templates.tpz -d templates_extract
-          cp -r templates_extract/templates/* "$`HOME/.local/share/godot/export_templates/`${GODOT_TEMPLATES_DIR}/" 
+          cp -r templates_extract/templates/* "`$HOME/.local/share/godot/export_templates/4.3.stable/" 
 
-      - name: Generate Walmart-style icon (valid PNG)
+      - name: Generate icon
         run: |
           python3 - <<'PY'
           import math, os
-          from PIL import Image, ImageDraw 
-
+          from PIL import Image, ImageDraw
           SIZE = 512
-          BLUE   = (0, 113, 206, 255)
-          YELLOW = (255, 194, 32, 255) 
-
-          img = Image.new("RGBA", (SIZE, SIZE), BLUE)
-          d = ImageDraw.Draw(img) 
-
+          img = Image.new("RGBA", (SIZE, SIZE), (0, 113, 206, 255))
+          d = ImageDraw.Draw(img)
           cx, cy = SIZE / 2, SIZE / 2
           outer_r = SIZE * 0.34
           inner_r = SIZE * 0.07
-          spokes = 6 
-
           pts = []
-          for i in range(spokes * 2):
-              angle = (math.pi * i) / spokes - math.pi / 2
+          for i in range(12):
+              angle = (math.pi * i) / 6 - math.pi / 2
               r = outer_r if i % 2 == 0 else inner_r
               pts.append((cx + math.cos(angle) * r, cy + math.sin(angle) * r))
-          d.polygon(pts, fill=YELLOW) 
-
+          d.polygon(pts, fill=(255, 194, 32, 255))
           rr = SIZE * 0.05
-          d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=YELLOW) 
-
+          d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=(255, 194, 32, 255))
           img.save("icon.png", "PNG")
           os.makedirs("assets", exist_ok=True)
           img.save("assets/icon.png", "PNG")
-          print("Generated valid PNG icons")
           PY 
 
       - name: Prepare project files
         run: |
           rm -rf .godot .import
-          find . -name "*.png.import" -delete 
-
-          mkdir -p scripts 
-
+          find . -name "*.png.import" -delete
+          mkdir -p scripts
           if [ ! -f project.godot ]; then
             cat > project.godot <<'EOF'
-          ; Engine configuration file.
           config_version=5 
 
           [application]
@@ -99,8 +81,7 @@ jobs:
           config/features=PackedStringArray("4.3")
           config/icon="res://icon.png"
           EOF
-          fi 
-
+          fi
           if [ ! -f main.tscn ]; then
             cat > main.tscn <<'EOF'
           [gd_scene load_steps=2 format=3] 
@@ -110,19 +91,13 @@ jobs:
           [node name="Main" type="Node3D"]
           script = ExtResource("1")
           EOF
-          fi 
-
+          fi
           if [ ! -f scripts/Main.gd ]; then
             cat > scripts/Main.gd <<'EOF'
-          extends Node3D 
-
+          extends Node3D
           func _ready():
               print("OrderFill Trainer started")
           EOF
-          fi 
-
-          if ! grep -q 'config/icon' project.godot; then
-            echo 'config/icon="res://icon.png"' >> project.godot
           fi 
 
       - name: Create debug keystore
@@ -130,26 +105,25 @@ jobs:
           keytool -genkeypair -v \
             -alias androiddebugkey \
             -keyalg RSA -keysize 2048 -validity 10000 \
-            -keystore "$`GITHUB_WORKSPACE/debug.keystore" \
+            -keystore debug.keystore \
             -storepass android -keypass android \
-            -dname "CN=Android Debug,O=Android,C=US"
-          echo "DEBUG_KEYSTORE=`$GITHUB_WORKSPACE/debug.keystore" >> "$`GITHUB_ENV" 
+            -dname "CN=Android Debug,O=Android,C=US" 
 
       - name: Configure Godot editor settings
         run: |
-          ES_DIR="`$HOME/.config/godot"
-          mkdir -p "$`ES_DIR"
-          cat > "`$ES_DIR/editor_settings-4.tres" <<EOF
-          [gd_resource type="EditorSettings" format=3] 
-
-          [resource]
-          export/android/android_sdk_path = "$`{ANDROID_SDK_ROOT}"
-          export/android/debug_keystore = "`${DEBUG_KEYSTORE}"
-          export/android/debug_keystore_user = "androiddebugkey"
-          export/android/debug_keystore_pass = "android"
-          export/android/force_system_user = false
-          export/android/shutdown_adb_on_exit = true
-          EOF 
+          mkdir -p "$`HOME/.config/godot"
+          KS="`$GITHUB_WORKSPACE/debug.keystore"
+          SDK="$`ANDROID_SDK_ROOT"
+          {
+            echo '[gd_resource type="EditorSettings" format=3]'
+            echo ''
+            echo '[resource]'
+            echo "export/android/android_sdk_path = \"`$SDK\""
+            echo "export/android/debug_keystore = \"$`KS\""
+            echo 'export/android/debug_keystore_user = "androiddebugkey"'
+            echo 'export/android/debug_keystore_pass = "android"'
+            echo 'export/android/shutdown_adb_on_exit = true'
+          } > "`$HOME/.config/godot/editor_settings-4.tres" 
 
       - name: Create export preset
         run: |
@@ -159,4 +133,21 @@ jobs:
           name="Android"
           platform="Android"
           runnable=true
-          dedicated_serv
+          dedicated_server=false
+          custom_features=""
+          export_filter="all_resources"
+          include_filter=""
+          exclude_filter=""
+          export_path="build/OrderFillTrainer.apk"
+          encryption_include_filters=""
+          encryption_exclude_filters=""
+          encrypt_pck=false
+          encrypt_directory=false 
+
+          [preset.0.options] 
+
+          custom_template/debug=""
+          custom_template/release=""
+          gradle_build/use_gradle_build=false
+          gradle_build/export_format=0
+         
