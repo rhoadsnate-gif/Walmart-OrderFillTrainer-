@@ -21,77 +21,70 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget unzip
-
       - name: Download Godot
         run: |
-          wget https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_linux.x86_64.zip
-          unzip -o Godot_v4.2.2-stable_linux.x86_64.zip
+          curl -L -o godot.zip https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_linux.x86_64.zip
+          unzip -o godot.zip
           chmod +x Godot_v4.2.2-stable_linux.x86_64
 
-      - name: Download export templates
+      - name: Download templates
         run: |
           mkdir -p ~/.local/share/godot/export_templates/4.2.2.stable
-          wget https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_export_templates.tpz
-          unzip -o Godot_v4.2.2-stable_export_templates.tpz -d templates
+          curl -L -o templates.tpz https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_export_templates.tpz
+          unzip -o templates.tpz -d templates
           cp -r templates/templates/* ~/.local/share/godot/export_templates/4.2.2.stable/
 
-      - name: Reset Godot cache
+      - name: Clean Godot cache and icon refs
         run: |
           rm -rf .godot
           rm -rf .import
+          rm -f icon.png.import
           mkdir -p .godot/editor
+          sed -i '/config\/icon/d' project.godot
           chmod -R 777 .
 
-      - name: Create debug keystore
+      - name: Create keystore
         run: |
-          keytool -keyalg RSA -genkeypair \
-            -alias androiddebugkey \
-            -keypass android \
-            -storepass android \
-            -keystore debug.keystore \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
 
-      - name: Create export preset (NO ICON)
+      - name: Create export preset
         run: |
-          cat > export_presets.cfg << 'EOF'
-          [preset.0]
-
-          name="Android"
-          platform="Android"
-          runnable=true
-          export_filter="all_resources"
-          export_path="build/game.apk"
-
-          [preset.0.options]
-
-          package/unique_name="com.rhoadsnate.orderfilltrainer"
-          package/name="OrderFill Trainer"
-          package/signed=true
-
-          launcher_icons/main_192x192=""
-          launcher_icons/adaptive_foreground_432x432=""
-          launcher_icons/adaptive_background_432x432=""
-
-          architectures/arm64-v8a=true
-
-          keystore/debug="debug.keystore"
-          keystore/debug_user="androiddebugkey"
-          keystore/debug_password="android"
-          EOF
+          echo '[preset.0]' > export_presets.cfg
+          echo '' >> export_presets.cfg
+          echo 'name="Android"' >> export_presets.cfg
+          echo 'platform="Android"' >> export_presets.cfg
+          echo 'runnable=true' >> export_presets.cfg
+          echo 'dedicated_server=false' >> export_presets.cfg
+          echo 'custom_features=""' >> export_presets.cfg
+          echo 'export_filter="all_resources"' >> export_presets.cfg
+          echo 'include_filter=""' >> export_presets.cfg
+          echo 'exclude_filter=""' >> export_presets.cfg
+          echo 'export_path="build/game.apk"' >> export_presets.cfg
+          echo 'encryption_include_filters=""' >> export_presets.cfg
+          echo 'encryption_exclude_filters=""' >> export_presets.cfg
+          echo 'encrypt_pck=false' >> export_presets.cfg
+          echo 'encrypt_directory=false' >> export_presets.cfg
+          echo '' >> export_presets.cfg
+          echo '[preset.0.options]' >> export_presets.cfg
+          echo '' >> export_presets.cfg
+          echo 'architectures/armeabi-v7a=false' >> export_presets.cfg
+          echo 'architectures/arm64-v8a=true' >> export_presets.cfg
+          echo 'architectures/x86=false' >> export_presets.cfg
+          echo 'architectures/x86_64=false' >> export_presets.cfg
+          echo 'package/unique_name="com.rhoadsnate.orderfilltrainer"' >> export_presets.cfg
+          echo 'package/name="OrderFill Trainer"' >> export_presets.cfg
+          echo 'package/signed=true' >> export_presets.cfg
+          echo 'launcher_icons/main_192x192=""' >> export_presets.cfg
+          echo 'launcher_icons/adaptive_foreground_432x432=""' >> export_presets.cfg
+          echo 'launcher_icons/adaptive_background_432x432=""' >> export_presets.cfg
+          echo 'keystore/debug="debug.keystore"' >> export_presets.cfg
+          echo 'keystore/debug_user="androiddebugkey"' >> export_presets.cfg
+          echo 'keystore/debug_password="android"' >> export_presets.cfg
 
       - name: Build APK
         run: |
           mkdir -p build
-          ./Godot_v4.2.2-stable_linux.x86_64 \
-            --headless \
-            --verbose \
-            --path . \
-            --export-debug "Android" build/game.apk
+          ./Godot_v4.2.2-stable_linux.x86_64 --headless --path . --export-debug "Android" build/game.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
