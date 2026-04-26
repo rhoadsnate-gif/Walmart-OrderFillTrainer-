@@ -47,12 +47,82 @@ jobs:
             -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
 
-      - name: Fix Godot writable folders
+      - name: Fix missing files
         run: |
           mkdir -p .godot/editor
-          touch .godot/editor/project_metadata.cfg
           chmod -R 777 .
-          chmod -R 777 .godot
+
+          # Fix broken/missing icon.png with a tiny valid PNG
+          echo "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAOUlEQVR4nO3PAQ0AAAgDINc/9K3hSxJqSQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwG0GQwABpL6S2wAAAABJRU5ErkJggg==" | base64 -d > icon.png
+
+      - name: Create Android export preset
+        run: |
+          cat > export_presets.cfg <<'EOF'
+          [preset.0]
+
+          name="Android"
+          platform="Android"
+          runnable=true
+          dedicated_server=false
+          custom_features=""
+          export_filter="all_resources"
+          include_filter=""
+          exclude_filter=""
+          export_path="build/game.apk"
+          encryption_include_filters=""
+          encryption_exclude_filters=""
+          encrypt_pck=false
+          encrypt_directory=false
+
+          [preset.0.options]
+
+          custom_template/debug=""
+          custom_template/release=""
+          gradle_build/use_gradle_build=false
+          gradle_build/gradle_build_directory=""
+          gradle_build/android_source_template=""
+          gradle_build/compress_native_libraries=false
+          gradle_build/export_format=0
+          gradle_build/min_sdk=""
+          gradle_build/target_sdk=""
+          architectures/armeabi-v7a=false
+          architectures/arm64-v8a=true
+          architectures/x86=false
+          architectures/x86_64=false
+          version/code=1
+          version/name="1.0"
+          package/unique_name="com.rhoadsnate.orderfilltrainer"
+          package/name="OrderFill Trainer"
+          package/signed=true
+          package/app_category=2
+          package/retain_data_on_uninstall=false
+          package/exclude_from_recents=false
+          launcher_icons/main_192x192="res://icon.png"
+          launcher_icons/adaptive_foreground_432x432="res://icon.png"
+          launcher_icons/adaptive_background_432x432="res://icon.png"
+          graphics/opengl_debug=false
+          xr_features/xr_mode=0
+          screen/immersive_mode=true
+          screen/support_small=true
+          screen/support_normal=true
+          screen/support_large=true
+          screen/support_xlarge=true
+          user_data_backup/allow=false
+          command_line/extra_args=""
+          apk_expansion/enable=false
+          apk_expansion/SALT=""
+          apk_expansion/public_key=""
+          permissions/custom_permissions=PackedStringArray()
+          permissions/internet=false
+          permissions/vibrate=false
+          permissions/wake_lock=false
+          keystore/debug="debug.keystore"
+          keystore/debug_user="androiddebugkey"
+          keystore/debug_password="android"
+          keystore/release=""
+          keystore/release_user=""
+          keystore/release_password=""
+          EOF
 
       - name: Build APK
         run: |
