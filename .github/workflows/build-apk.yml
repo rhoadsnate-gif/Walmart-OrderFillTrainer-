@@ -21,12 +21,6 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install tools
-        run: sudo apt-get update && sudo apt-get install -y imagemagick
-
-      - name: Create fallback icon
-        run: convert -size 512x512 xc:blue icon.png
-
       - name: Download Godot
         run: |
           curl -L -o godot.zip https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_linux.x86_64.zip
@@ -40,6 +34,27 @@ jobs:
           unzip -o templates.tpz -d templates
           cp -r templates/templates/* ~/.local/share/godot/export_templates/4.2.2.stable/
 
+      - name: Fix icons and cache
+        run: |
+          rm -rf .godot
+          mkdir -p assets
+          python3 - <<'PY'
+          import struct, zlib, os
+
+          def chunk(tag, data):
+              return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xffffffff)
+
+          w, h = 512, 512
+          raw = b"".join(b"\x00" + bytes([0, 86, 255, 255]) * w for _ in range(h))
+          png = b"\x89PNG\r\n\x1a\n"
+          png += chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0))
+          png += chunk(b"IDAT", zlib.compress(raw, 9))
+          png += chunk(b"IEND", b"")
+
+          open("icon.png", "wb").write(png)
+          open("assets/icon.png", "wb").write(png)
+          PY
+
       - name: Create debug keystore
         run: |
           keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -storepass android -keystore debug.keystore -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
@@ -47,32 +62,54 @@ jobs:
       - name: Create export preset
         run: |
           python3 - <<'PY'
-          text = """[preset.0]
-
-          name="Android"
-          platform="Android"
-          runnable=true
-          export_filter="all_resources"
-          export_path="build/game.apk"
-
-          [preset.0.options]
-
-          package/unique_name="com.rhoadsnate.orderfilltrainer"
-          package/name="OrderFill Trainer"
-          package/signed=true"
-          launcher_icons/main_192x192="res://icon.png"
-          launcher_icons/adaptive_foreground_432x432="res://icon.png"
-          launcher_icons/adaptive_background_432x432="res://icon.png"
-          architectures/armeabi-v7a=false
-          architectures/arm64-v8a=true
-          architectures/x86=false
-          architectures/x86_64=false
-          keystore/debug="debug.keystore"
-          keystore/debug_user="androiddebugkey"
-          keystore/debug_password="android"
-          """
-          text = "\n".join(line.strip() for line in text.splitlines())
-          open("export_presets.cfg", "w").write(text)
+          lines = [
+              "[preset.0]",
+              "",
+              'name="Android"',
+              'platform="Android"',
+              "runnable=true",
+              'custom_features=""',
+              'export_filter="all_resources"',
+              'include_filter=""',
+              'exclude_filter=""',
+              'export_path="build/game.apk"',
+              'encryption_include_filters=""',
+              'encryption_exclude_filters=""',
+              "encrypt_pck=false",
+              "encrypt_directory=false",
+              "",
+              "[preset.0.options]",
+              "",
+              'custom_template/debug=""',
+              'custom_template/release=""',
+              "gradle_build/use_gradle_build=false",
+              "gradle_build/export_format=0",
+              "architectures/armeabi-v7a=false",
+              "architectures/arm64-v8a=true",
+              "architectures/x86=false",
+              "architectures/x86_64=false",
+              "version/code=1",
+              'version/name="1.0"',
+              'package/unique_name="com.rhoadsnate.orderfilltrainer"',
+              'package/name="OrderFill Trainer"',
+              "package/signed=true",
+              'launcher_icons/main_192x192="res://icon.png"',
+              'launcher_icons/adaptive_foreground_432x432="res://icon.png"',
+              'launcher_icons/adaptive_background_432x432="res://icon.png"',
+              "screen/immersive_mode=true",
+              "screen/support_small=true",
+              "screen/support_normal=true",
+              "screen/support_large=true",
+              "screen/support_xlarge=true",
+              "permissions/custom_permissions=PackedStringArray()",
+              'keystore/debug="debug.keystore"',
+              'keystore/debug_user="androiddebugkey"',
+              'keystore/debug_password="android"',
+              'keystore/release=""',
+              'keystore/release_user=""',
+              'keystore/release_password=""',
+          ]
+          open("export_presets.cfg", "w").write("\n".join(lines) + "\n")
           PY
 
       - name: Fix permissions
