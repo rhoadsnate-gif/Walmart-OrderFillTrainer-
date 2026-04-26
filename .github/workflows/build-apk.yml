@@ -1,153 +1,171 @@
-name: Build APK Factory 
+name: Build APK Factory
 
 on:
-  push:
-  workflow_dispatch: 
+  push:
+  workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest 
+  build:
+    runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4 
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17" 
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Install tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget unzip python3-pip
-          python3 -m pip install --upgrade Pillow 
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget unzip imagemagick
 
-      - name: Download Godot
-        run: |
-          wget -q -O godot.zip "https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip"
-          unzip -o godot.zip
-          mv "Godot_v4.3-stable_linux.x86_64" godot
-          chmod +x godot
-          ./godot --version 
+      - name: Download Godot
+        run: |
+          wget -O godot.zip https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_linux.x86_64.zip
+          unzip -o godot.zip
+          chmod +x Godot_v4.2.2-stable_linux.x86_64
 
-      - name: Download Android export templates
-        run: |
-          mkdir -p "$`HOME/.local/share/godot/export_templates/4.3.stable"
-          wget -q -O templates.tpz "https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz"
-          unzip -o templates.tpz -d templates_extract
-          cp -r templates_extract/templates/* "`$HOME/.local/share/godot/export_templates/4.3.stable/" 
+      - name: Download Godot Android export templates
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates/4.2.2.stable
+          wget -O templates.tpz https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_export_templates.tpz
+          unzip -o templates.tpz -d templates
+          cp -r templates/templates/* ~/.local/share/godot/export_templates/4.2.2.stable/
 
-      - name: Generate icon
-        run: |
-          python3 - <<'PY'
-          import math, os
-          from PIL import Image, ImageDraw
-          SIZE = 512
-          img = Image.new("RGBA", (SIZE, SIZE), (0, 113, 206, 255))
-          d = ImageDraw.Draw(img)
-          cx, cy = SIZE / 2, SIZE / 2
-          outer_r = SIZE * 0.34
-          inner_r = SIZE * 0.07
-          pts = []
-          for i in range(12):
-              angle = (math.pi * i) / 6 - math.pi / 2
-              r = outer_r if i % 2 == 0 else inner_r
-              pts.append((cx + math.cos(angle) * r, cy + math.sin(angle) * r))
-          d.polygon(pts, fill=(255, 194, 32, 255))
-          rr = SIZE * 0.05
-          d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=(255, 194, 32, 255))
-          img.save("icon.png", "PNG")
-          os.makedirs("assets", exist_ok=True)
-          img.save("assets/icon.png", "PNG")
-          PY 
+      - name: Fix project and icon
+        run: |
+          rm -rf .godot
+          rm -rf .import
+          rm -f icon.png.import
+          rm -f assets/icon.png.import
 
-      - name: Prepare project files
-        run: |
-          rm -rf .godot .import
-          find . -name "*.png.import" -delete
-          mkdir -p scripts
-          if [ ! -f project.godot ]; then
-            cat > project.godot <<'EOF'
-          config_version=5 
+          mkdir -p .godot/editor
+          mkdir -p scripts
 
-          [application]
-          config/name="OrderFill Trainer"
-          run/main_scene="res://main.tscn"
-          config/features=PackedStringArray("4.3")
-          config/icon="res://icon.png"
-          EOF
-          fi
-          if [ ! -f main.tscn ]; then
-            cat > main.tscn <<'EOF'
-          [gd_scene load_steps=2 format=3] 
+          if [ ! -f project.godot ]; then
+            printf '%s\n' \
+            '[application]' \
+            'config/name="OrderFill Trainer"' \
+            'run/main_scene="res://main.tscn"' \
+            'config/icon="res://icon.png"' \
+            > project.godot
+          fi
 
-          [ext_resource type="Script" path="res://scripts/Main.gd" id="1"] 
+          if [ ! -f main.tscn ]; then
+            printf '%s\n' \
+            '[gd_scene load_steps=2 format=3]' \
+            '' \
+            '[ext_resource type="Script" path="res://scripts/Main.gd" id="1"]' \
+            '' \
+            '[node name="Main" type="Node3D"]' \
+            'script = ExtResource("1")' \
+            > main.tscn
+          fi
 
-          [node name="Main" type="Node3D"]
-          script = ExtResource("1")
-          EOF
-          fi
-          if [ ! -f scripts/Main.gd ]; then
-            cat > scripts/Main.gd <<'EOF'
-          extends Node3D
-          func _ready():
-              print("OrderFill Trainer started")
-          EOF
-          fi 
+          if [ ! -f scripts/Main.gd ]; then
+            printf '%s\n' \
+            'extends Node3D' \
+            '' \
+            'func _ready():' \
+            '    print("OrderFill Trainer started")' \
+            > scripts/Main.gd
+          fi
 
-      - name: Create debug keystore
-        run: |
-          keytool -genkeypair -v \
-            -alias androiddebugkey \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -keystore debug.keystore \
-            -storepass android -keypass android \
-            -dname "CN=Android Debug,O=Android,C=US" 
+          if [ ! -f icon.png ]; then
+            convert -size 512x512 xc:"#0071ce" \
+              -fill "#ffc220" -draw "circle 256,256 256,80" \
+              icon.png
+          fi
 
-      - name: Configure Godot editor settings
-        run: |
-          mkdir -p "$`HOME/.config/godot"
-          KS="`$GITHUB_WORKSPACE/debug.keystore"
-          SDK="$`ANDROID_SDK_ROOT"
-          {
-            echo '[gd_resource type="EditorSettings" format=3]'
-            echo ''
-            echo '[resource]'
-            echo "export/android/android_sdk_path = \"`$SDK\""
-            echo "export/android/debug_keystore = \"$`KS\""
-            echo 'export/android/debug_keystore_user = "androiddebugkey"'
-            echo 'export/android/debug_keystore_pass = "android"'
-            echo 'export/android/shutdown_adb_on_exit = true'
-          } > "`$HOME/.config/godot/editor_settings-4.tres" 
+          convert icon.png -resize 512x512! icon.png
 
-      - name: Create export preset
-        run: |
-          cat > export_presets.cfg <<'EOF'
-          [preset.0] 
+          sed -i '/config\/icon/d' project.godot
+          printf '%s\n' 'config/icon="res://icon.png"' >> project.godot
 
-          name="Android"
-          platform="Android"
-          runnable=true
-          dedicated_server=false
-          custom_features=""
-          export_filter="all_resources"
-          include_filter=""
-          exclude_filter=""
-          export_path="build/OrderFillTrainer.apk"
-          encryption_include_filters=""
-          encryption_exclude_filters=""
-          encrypt_pck=false
-          encrypt_directory=false 
+          chmod -R 777 .
 
-          [preset.0.options] 
+      - name: Create Android keystore
+        run: |
+          keytool -genkeypair -v \
+            -alias orderfilltrainer \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -keystore orderfilltrainer.keystore \
+            -storepass android \
+            -keypass android \
+            -dname "CN=OrderFill Trainer,O=rhoadsnate,C=US"
 
-          custom_template/debug=""
-          custom_template/release=""
-          gradle_build/use_gradle_build=false
-          gradle_build/export_format=0
-         
+      - name: Create export preset
+        run: |
+          printf '%s\n' \
+          '[preset.0]' \
+          '' \
+          'name="Android"' \
+          'platform="Android"' \
+          'runnable=true' \
+          'dedicated_server=false' \
+          'custom_features=""' \
+          'export_filter="all_resources"' \
+          'include_filter=""' \
+          'exclude_filter=""' \
+          'export_path="build/OrderFillTrainer.apk"' \
+          'encryption_include_filters=""' \
+          'encryption_exclude_filters=""' \
+          'encrypt_pck=false' \
+          'encrypt_directory=false' \
+          '' \
+          '[preset.0.options]' \
+          '' \
+          'custom_template/debug=""' \
+          'custom_template/release=""' \
+          'gradle_build/use_gradle_build=false' \
+          'gradle_build/export_format=0' \
+          'gradle_build/min_sdk=""' \
+          'gradle_build/target_sdk=""' \
+          'architectures/armeabi-v7a=false' \
+          'architectures/arm64-v8a=true' \
+          'architectures/x86=false' \
+          'architectures/x86_64=false' \
+          'version/code=1' \
+          'version/name="1.0"' \
+          'package/unique_name="com.rhoadsnate.orderfilltrainer"' \
+          'package/name="OrderFill Trainer"' \
+          'package/signed=true' \
+          'launcher_icons/main_192x192="res://icon.png"' \
+          'launcher_icons/adaptive_foreground_432x432="res://icon.png"' \
+          'launcher_icons/adaptive_background_432x432="res://icon.png"' \
+          'screen/immersive_mode=true' \
+          'screen/support_small=true' \
+          'screen/support_normal=true' \
+          'screen/support_large=true' \
+          'screen/support_xlarge=true' \
+          'permissions/custom_permissions=PackedStringArray()' \
+          'permissions/internet=false' \
+          'permissions/vibrate=false' \
+          'permissions/wake_lock=false' \
+          'keystore/debug="orderfilltrainer.keystore"' \
+          'keystore/debug_user="orderfilltrainer"' \
+          'keystore/debug_password="android"' \
+          'keystore/release="orderfilltrainer.keystore"' \
+          'keystore/release_user="orderfilltrainer"' \
+          'keystore/release_password="android"' \
+          > export_presets.cfg
+
+      - name: Build APK
+        run: |
+          mkdir -p build
+          ./Godot_v4.2.2-stable_linux.x86_64 --headless --verbose --path . --export-release "Android" build/OrderFillTrainer.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: OrderFillTrainer-APK
+          path: build/OrderFillTrainer.apk
