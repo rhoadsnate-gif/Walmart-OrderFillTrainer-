@@ -42,36 +42,38 @@ jobs:
 
       - name: Create debug keystore
         run: |
-          keytool -keyalg RSA -genkeypair \
-            -alias androiddebugkey \
-            -keypass android \
-            -storepass android \
-            -keystore debug.keystore \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -storepass android -keystore debug.keystore -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
 
       - name: Create export preset
         run: |
-          cat > export_presets.cfg <<'EOF'
-[preset.0]
-name="Android"
-platform="Android"
-runnable=true
-export_filter="all_resources"
-export_path="build/game.apk"
+          python3 - <<'PY'
+          text = """[preset.0]
 
-[preset.0.options]
-package/unique_name="com.rhoadsnate.orderfilltrainer"
-package/name="OrderFill Trainer"
-package/signed=true
-launcher_icons/main_192x192="res://icon.png"
-launcher_icons/adaptive_foreground_432x432="res://icon.png"
-launcher_icons/adaptive_background_432x432="res://icon.png"
-architectures/arm64-v8a=true
-keystore/debug="debug.keystore"
-keystore/debug_user="androiddebugkey"
-keystore/debug_password="android"
-EOF
+          name="Android"
+          platform="Android"
+          runnable=true
+          export_filter="all_resources"
+          export_path="build/game.apk"
+
+          [preset.0.options]
+
+          package/unique_name="com.rhoadsnate.orderfilltrainer"
+          package/name="OrderFill Trainer"
+          package/signed=true"
+          launcher_icons/main_192x192="res://icon.png"
+          launcher_icons/adaptive_foreground_432x432="res://icon.png"
+          launcher_icons/adaptive_background_432x432="res://icon.png"
+          architectures/armeabi-v7a=false
+          architectures/arm64-v8a=true
+          architectures/x86=false
+          architectures/x86_64=false
+          keystore/debug="debug.keystore"
+          keystore/debug_user="androiddebugkey"
+          keystore/debug_password="android"
+          """
+          text = "\n".join(line.strip() for line in text.splitlines())
+          open("export_presets.cfg", "w").write(text)
+          PY
 
       - name: Fix permissions
         run: |
@@ -81,10 +83,7 @@ EOF
       - name: Build APK
         run: |
           mkdir -p build
-          ./Godot_v4.2.2-stable_linux.x86_64 \
-          --headless \
-          --path . \
-          --export-debug "Android" build/game.apk
+          ./Godot_v4.2.2-stable_linux.x86_64 --headless --path . --export-debug "Android" build/game.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
