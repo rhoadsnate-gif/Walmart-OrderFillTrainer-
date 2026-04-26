@@ -24,10 +24,8 @@ jobs:
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y imagemagick
 
-      # ✅ FORCE CREATE ICON (NO MORE ERRORS EVER)
       - name: Create fallback icon
-        run: |
-          convert -size 512x512 xc:blue icon.png
+        run: convert -size 512x512 xc:blue icon.png
 
       - name: Download Godot
         run: |
