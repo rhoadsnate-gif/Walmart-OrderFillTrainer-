@@ -34,30 +34,22 @@ jobs:
           unzip -o templates.tpz -d templates
           cp -r templates/templates/* ~/.local/share/godot/export_templates/4.2.2.stable/
 
-      - name: Fix icons and cache
+      - name: Reset Godot import cache
         run: |
           rm -rf .godot
-          mkdir -p assets
-          python3 - <<'PY'
-          import struct, zlib, os
-
-          def chunk(tag, data):
-              return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xffffffff)
-
-          w, h = 512, 512
-          raw = b"".join(b"\x00" + bytes([0, 86, 255, 255]) * w for _ in range(h))
-          png = b"\x89PNG\r\n\x1a\n"
-          png += chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0))
-          png += chunk(b"IDAT", zlib.compress(raw, 9))
-          png += chunk(b"IEND", b"")
-
-          open("icon.png", "wb").write(png)
-          open("assets/icon.png", "wb").write(png)
-          PY
+          rm -rf .import
+          mkdir -p .godot/editor
+          chmod -R 777 .
 
       - name: Create debug keystore
         run: |
-          keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -storepass android -keystore debug.keystore -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          keytool -keyalg RSA -genkeypair \
+            -alias androiddebugkey \
+            -keypass android \
+            -storepass android \
+            -keystore debug.keystore \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
 
       - name: Create export preset
         run: |
@@ -93,9 +85,9 @@ jobs:
               'package/unique_name="com.rhoadsnate.orderfilltrainer"',
               'package/name="OrderFill Trainer"',
               "package/signed=true",
-              'launcher_icons/main_192x192="res://icon.png"',
-              'launcher_icons/adaptive_foreground_432x432="res://icon.png"',
-              'launcher_icons/adaptive_background_432x432="res://icon.png"',
+              'launcher_icons/main_192x192=""',
+              'launcher_icons/adaptive_foreground_432x432=""',
+              'launcher_icons/adaptive_background_432x432=""',
               "screen/immersive_mode=true",
               "screen/support_small=true",
               "screen/support_normal=true",
@@ -112,15 +104,14 @@ jobs:
           open("export_presets.cfg", "w").write("\n".join(lines) + "\n")
           PY
 
-      - name: Fix permissions
-        run: |
-          mkdir -p .godot/editor
-          chmod -R 777 .
-
       - name: Build APK
         run: |
           mkdir -p build
-          ./Godot_v4.2.2-stable_linux.x86_64 --headless --path . --export-debug "Android" build/game.apk
+          ./Godot_v4.2.2-stable_linux.x86_64 \
+            --headless \
+            --verbose \
+            --path . \
+            --export-debug "Android" build/game.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
